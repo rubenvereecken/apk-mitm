@@ -26,6 +26,9 @@ export type TaskOptions = {
   isAppBundle: boolean
   debuggable: boolean
   skipDecode: boolean
+
+  decompileOnly: boolean
+  recompileOnly: boolean
 }
 
 interface PatchingError extends Error {
@@ -41,7 +44,15 @@ const { version } = require('../package.json')
 async function main() {
   const args = parseArgs(process.argv.slice(2), {
     string: ['apktool', 'certificate', 'tmp-dir', 'maps-api-key'],
-    boolean: ['help', 'skip-patches', 'wait', 'debuggable', 'keep-tmp-dir'],
+    boolean: [
+      'help',
+      'skip-patches',
+      'wait',
+      'debuggable',
+      'keep-tmp-dir',
+      'decompile-only',
+      'recompile-only',
+    ],
   })
 
   if (args.help) {
@@ -92,6 +103,8 @@ async function main() {
     console.log(chalk.dim(`  Using temporary directory:\n  ${tmpDir}\n`))
   }
 
+  console.log(args)
+
   taskFunction({
     inputPath,
     outputPath,
@@ -105,6 +118,8 @@ async function main() {
     isAppBundle,
     debuggable: args.debuggable,
     skipDecode,
+    decompileOnly: args.decompileOnly,
+    recompileOnly: args.recompileOnly,
   })
     .run()
     .then(async context => {
@@ -116,7 +131,8 @@ async function main() {
         chalk`\n  {green.inverse  Done! } Patched file: {bold ./${outputName}}\n`,
       )
 
-      if (!args['keep-tmp-dir']) {
+      // Always keep tmp dir if we're in decompile/recompile mode
+      if (!args['keep-tmp-dir'] && !args.decompileOnly && !args.recompileOnly) {
         try {
           await fs.rm(tmpDir, { recursive: true, force: true })
         } catch (error: any) {
@@ -187,6 +203,7 @@ async function determineTask(inputPath: string) {
         taskFunction = patchXapkBundle
         break
       case '.apks':
+      case '.aspk':
       case '.zip':
         isAppBundle = true
         taskFunction = patchApksBundle
@@ -233,7 +250,7 @@ function formatCommandError(error: string, { tmpDir }: { tmpDir: string }) {
 
 function showHelp() {
   console.log(chalk`
-  $ {bold apk-mitm} <path-to-apk/xapk/apks/decoded-directory>
+  $ {bold apk-mitm (Ruben's)} <path-to-apk/xapk/apks/decoded-directory>
 
   {blue {dim.bold *} Optional flags:}
   {dim {bold --wait} Wait for manual changes before re-encoding}
@@ -255,7 +272,7 @@ function showSupportedExtensions(): never {
   console.log(chalk`{yellow
   It looks like you tried running {bold apk-mitm} with an unsupported file type!
 
-  Only the following file extensions are supported: {bold .apk}, {bold .xapk}, and {bold .apks} (or {bold .zip})
+  Only the following file extensions are supported: {bold .apk}, {bold .xapk}, and {bold .apks}/{bold .aspk}, (or {bold .zip})
   }`)
 
   process.exit(1)

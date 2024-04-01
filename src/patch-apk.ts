@@ -21,17 +21,19 @@ export default function patchApk(options: TaskOptions) {
 
   return new Listr([
     {
+      skip: () => options.recompileOnly,
       title: 'Checking prerequisities',
       task: () => checkPrerequisites(options),
     },
     {
       title: 'Decoding APK file',
-      skip: () => options.skipDecode,
+      skip: () => options.skipDecode || options.recompileOnly,
       task: () => apktool.decode(options.inputPath, decodeDir),
     },
     {
       title: 'Applying patches',
-      skip: () => options.skipPatches,
+      // Apply patches on the decompile, not on the recompile
+      skip: () => options.skipPatches || options.recompileOnly,
       task: () =>
         applyPatches(decodeDir, {
           debuggable: options.debuggable,
@@ -56,6 +58,7 @@ export default function patchApk(options: TaskOptions) {
     },
     {
       title: 'Encoding patched APK file',
+      skip: () => options.decompileOnly,
       task: () =>
         new Listr([
           {
@@ -81,6 +84,7 @@ export default function patchApk(options: TaskOptions) {
     },
     {
       title: 'Signing patched APK file',
+      skip: () => options.decompileOnly,
       task: () =>
         observeAsync(async log => {
           await uberApkSigner

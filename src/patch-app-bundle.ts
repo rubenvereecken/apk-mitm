@@ -28,6 +28,7 @@ function patchAppBundle(options: TaskOptions, { isXapk }: { isXapk: boolean }) {
   return new Listr([
     {
       title: 'Extracting APKs',
+      skip: () => options.recompileOnly,
       task: async () => {
         await unzip(inputPath, bundleDir)
 
@@ -38,22 +39,22 @@ function patchAppBundle(options: TaskOptions, { isXapk }: { isXapk: boolean }) {
         }
       },
     },
-    ...(isXapk
-      ? [
-          {
-            title: 'Finding base APK path',
-            task: async () => {
-              const manifestPath = path.join(bundleDir, 'manifest.json')
-              const manifestContent = await fs.readFile(manifestPath, 'utf-8')
-              const manifest = JSON.parse(manifestContent)
+    {
+      title: 'Finding base APK path (for XAPK)',
+      enabled: () => isXapk,
+      skip: () => options.recompileOnly,
+      task: async () => {
+        const manifestPath = path.join(bundleDir, 'manifest.json')
+        const manifestContent = await fs.readFile(manifestPath, 'utf-8')
+        const manifest = JSON.parse(manifestContent)
 
-              baseApkPath = path.join(bundleDir, getXapkBaseName(manifest))
-            },
-          },
-        ]
-      : []),
+        baseApkPath = path.join(bundleDir, getXapkBaseName(manifest))
+      },
+    },
     {
       title: 'Patching base APK',
+      // Contains both decompile and recompile steps -> always run
+      skip: () => false,
       task: () =>
         patchApk({
           ...options,
@@ -63,7 +64,9 @@ function patchAppBundle(options: TaskOptions, { isXapk }: { isXapk: boolean }) {
         }),
     },
     {
+      // Pretty sure this also re-signs base.apk
       title: 'Signing APKs',
+      skip: () => options.decompileOnly,
       task: () =>
         observeAsync(async log => {
           const apkFiles = await globby(buildGlob(bundleDir, '**/*.apk'))
@@ -75,6 +78,7 @@ function patchAppBundle(options: TaskOptions, { isXapk }: { isXapk: boolean }) {
     },
     {
       title: 'Compressing APKs',
+      skip: () => options.decompileOnly,
       task: () => zip(bundleDir, outputPath),
     },
   ])
