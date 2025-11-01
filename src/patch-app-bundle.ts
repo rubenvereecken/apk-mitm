@@ -27,6 +27,19 @@ function patchAppBundle(options: TaskOptions, { isXapk }: { isXapk: boolean }) {
 
   return new Listr([
     {
+      title: 'Validating bundle directory exists',
+      enabled: () => options.recompileOnly,
+      task: async () => {
+        const exists = await fs.exists(bundleDir)
+        if (!exists) {
+          throw new Error(
+            `Cannot use --recompile-only: bundle directory does not exist at ${bundleDir}. ` +
+              `Run with --decompile-only first, or specify the same --tmp-dir used in the previous run.`,
+          )
+        }
+      },
+    },
+    {
       title: 'Extracting APKs',
       skip: () => options.recompileOnly,
       task: async () => {
@@ -42,7 +55,6 @@ function patchAppBundle(options: TaskOptions, { isXapk }: { isXapk: boolean }) {
     {
       title: 'Finding base APK path (for XAPK)',
       enabled: () => isXapk,
-      skip: () => options.recompileOnly,
       task: async () => {
         const manifestPath = path.join(bundleDir, 'manifest.json')
         const manifestContent = await fs.readFile(manifestPath, 'utf-8')

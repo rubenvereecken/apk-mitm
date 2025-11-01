@@ -55,6 +55,40 @@ async function main() {
     ],
   })
 
+  // Validate that no unknown flags were provided
+  const knownFlags = new Set([
+    'apktool',
+    'certificate',
+    'tmp-dir',
+    'tmpDir', // camelCase alias
+    'maps-api-key',
+    'mapsApiKey', // camelCase alias
+    'help',
+    'skip-patches',
+    'skipPatches', // camelCase alias
+    'wait',
+    'debuggable',
+    'keep-tmp-dir',
+    'keepTmpDir', // camelCase alias
+    'decompile-only',
+    'decompileOnly', // camelCase alias
+    'recompile-only',
+    'recompileOnly', // camelCase alias
+    '_', // positional arguments
+  ])
+
+  const unknownFlags = Object.keys(args).filter(key => !knownFlags.has(key))
+  if (unknownFlags.length > 0) {
+    console.error(chalk`{red
+  {inverse.bold  Error } Unknown flag${
+    unknownFlags.length > 1 ? 's' : ''
+  }: {bold ${unknownFlags.map(f => `--${f}`).join(', ')}}
+  
+  Run {bold apk-mitm --help} to see all available flags.
+  }`)
+    process.exit(1)
+  }
+
   if (args.help) {
     showHelp()
     process.exit()
@@ -101,8 +135,6 @@ async function main() {
   } else {
     console.log(chalk.dim(`  Using temporary directory:\n  ${tmpDir}\n`))
   }
-
-  console.log(args)
 
   taskFunction({
     inputPath,
@@ -249,7 +281,7 @@ function formatCommandError(error: string, { tmpDir }: { tmpDir: string }) {
 
 function showHelp() {
   console.log(chalk`
-  $ {bold apk-mitm (Ruben's)} <path-to-apk/xapk/apks/decoded-directory>
+  $ {bold apk-mitm} <path-to-apk/xapk/apks/decoded-directory>
 
   {blue {dim.bold *} Optional flags:}
   {dim {bold --wait} Wait for manual changes before re-encoding}
@@ -257,6 +289,8 @@ function showHelp() {
   {dim {bold --keep-tmp-dir} Don't delete the temporary directory after patching}
   {dim {bold --debuggable} Make the patched app debuggable}
   {dim {bold --skip-patches} Don't apply any patches (for troubleshooting)}
+  {dim {bold --decompile-only} Only decode the APK (don't recompile or sign)}
+  {dim {bold --recompile-only} Only recompile and sign (requires previous --decompile-only run)}
   {dim {bold --apktool <path-to-jar>} Use custom version of Apktool}
   {dim {bold --certificate <path-to-pem/der>} Add specific certificate to network security config}
   {dim {bold --maps-api-key <api-key>} Add custom Google Maps API key to be replaced while patching apk}

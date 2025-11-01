@@ -26,6 +26,27 @@ export default function patchApk(options: TaskOptions) {
       task: () => checkPrerequisites(options),
     },
     {
+      title: 'Validating decoded directory exists',
+      enabled: () => options.recompileOnly && !options.skipDecode,
+      task: async () => {
+        const exists = await fs.exists(decodeDir)
+        if (!exists) {
+          throw new Error(
+            `Cannot use --recompile-only: decoded directory does not exist at ${decodeDir}. ` +
+              `Run with --decompile-only first, or specify the same --tmp-dir used in the previous run.`,
+          )
+        }
+        const apktoolYamlPath = path.join(decodeDir, 'apktool.yml')
+        const yamlExists = await fs.exists(apktoolYamlPath)
+        if (!yamlExists) {
+          throw new Error(
+            `Invalid decoded directory at ${decodeDir}: missing apktool.yml file. ` +
+              `Make sure this directory was created by a previous --decompile-only run.`,
+          )
+        }
+      },
+    },
+    {
       title: 'Decoding APK file',
       skip: () => options.skipDecode || options.recompileOnly,
       task: () => apktool.decode(options.inputPath, decodeDir),
