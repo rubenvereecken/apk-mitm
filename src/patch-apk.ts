@@ -12,9 +12,7 @@ import checkPrerequisites from './tasks/check-prerequisites'
 export default function patchApk(options: TaskOptions) {
   const { apktool, uberApkSigner } = options
 
-  const decodeDir = options.skipDecode
-    ? options.inputPath
-    : path.join(options.tmpDir, 'decode')
+  const decodeDir = options.skipDecode ? options.inputPath : options.tmpDir
   const tmpApkPath = path.join(options.tmpDir, 'tmp.apk')
 
   let fallBackToAapt = false

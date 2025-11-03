@@ -84,16 +84,19 @@ function patchAppBundle(options: TaskOptions, { isXapk }: { isXapk: boolean }) {
       skip: () => false,
       task: () =>
         new Listr(
-          apkPaths.map((apkPath, index) => ({
-            title: `Patching ${path.basename(apkPath)}`,
-            task: () =>
-              patchApk({
-                ...options,
-                inputPath: apkPath,
-                outputPath: apkPath,
-                tmpDir: path.join(tmpDir, `apk-${index}`),
-              }),
-          })),
+          apkPaths.map(apkPath => {
+            const apkName = path.basename(apkPath, '.apk')
+            return {
+              title: `Patching ${path.basename(apkPath)}`,
+              task: () =>
+                patchApk({
+                  ...options,
+                  inputPath: apkPath,
+                  outputPath: apkPath,
+                  tmpDir: path.join(tmpDir, apkName),
+                }),
+            }
+          }),
           { concurrent: false },
         ),
     },

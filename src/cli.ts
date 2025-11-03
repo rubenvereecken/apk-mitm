@@ -136,12 +136,18 @@ async function main() {
     console.log(chalk.dim(`  Using temporary directory:\n  ${tmpDir}\n`))
   }
 
+  // For single APKs, use a 'base' subdirectory to match bundle structure
+  const taskTmpDir =
+    taskFunction === patchApk && !isAppBundle
+      ? path.join(tmpDir, 'base')
+      : tmpDir
+
   taskFunction({
     inputPath,
     outputPath,
     certificatePath,
     mapsApiKey,
-    tmpDir,
+    tmpDir: taskTmpDir,
     apktool,
     uberApkSigner,
     wait: args.wait,
