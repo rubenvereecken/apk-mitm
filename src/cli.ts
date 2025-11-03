@@ -158,9 +158,11 @@ async function main() {
         showAppBundleWarning()
       }
 
-      console.log(
-        chalk`\n  {green.inverse  Done! } Patched file: {bold ./${outputName}}\n`,
-      )
+      if (!args.decompileOnly) {
+        console.log(
+          chalk`\n  {green.inverse  Done! } Patched file: {bold ./${outputName}}\n`,
+        )
+      }
 
       // Always keep tmp dir if we're in decompile/recompile mode
       if (!args['keep-tmp-dir'] && !args.decompileOnly && !args.recompileOnly) {

@@ -19,11 +19,27 @@ export function patchApksBundle(options: TaskOptions) {
   return patchAppBundle(options, { isXapk: false })
 }
 
+async function findApkPaths(bundleDir: string): Promise<string[]> {
+  // Try to use manifest.json if available
+  const manifestPath = path.join(bundleDir, 'manifest.json')
+  const manifestExists = await fs.exists(manifestPath)
+
+  if (manifestExists) {
+    const manifestContent = await fs.readFile(manifestPath, 'utf-8')
+    const manifest = JSON.parse(manifestContent)
+    return getXapkApkPaths(bundleDir, manifest)
+  }
+
+  // No manifest: find all top-level APK files
+  const apkFiles = await globby(buildGlob(bundleDir, '*.apk'))
+  return apkFiles.sort()
+}
+
 function patchAppBundle(options: TaskOptions, { isXapk }: { isXapk: boolean }) {
   const { inputPath, outputPath, tmpDir, uberApkSigner } = options
 
   const bundleDir = path.join(tmpDir, 'bundle')
-  let baseApkPath = path.join(bundleDir, 'base.apk')
+  let apkPaths: string[] = []
 
   return new Listr([
     {
@@ -53,30 +69,35 @@ function patchAppBundle(options: TaskOptions, { isXapk }: { isXapk: boolean }) {
       },
     },
     {
-      title: 'Finding base APK path (for XAPK)',
-      enabled: () => isXapk,
+      title: 'Finding APKs to patch',
       task: async () => {
-        const manifestPath = path.join(bundleDir, 'manifest.json')
-        const manifestContent = await fs.readFile(manifestPath, 'utf-8')
-        const manifest = JSON.parse(manifestContent)
+        apkPaths = await findApkPaths(bundleDir)
 
-        baseApkPath = path.join(bundleDir, getXapkBaseName(manifest))
+        if (apkPaths.length === 0) {
+          throw new Error(`No APK files found in bundle at ${bundleDir}`)
+        }
       },
     },
     {
-      title: 'Patching base APK',
+      title: 'Patching APKs',
       // Contains both decompile and recompile steps -> always run
       skip: () => false,
       task: () =>
-        patchApk({
-          ...options,
-          inputPath: baseApkPath,
-          outputPath: baseApkPath,
-          tmpDir: path.join(tmpDir, 'base-apk'),
-        }),
+        new Listr(
+          apkPaths.map((apkPath, index) => ({
+            title: `Patching ${path.basename(apkPath)}`,
+            task: () =>
+              patchApk({
+                ...options,
+                inputPath: apkPath,
+                outputPath: apkPath,
+                tmpDir: path.join(tmpDir, `apk-${index}`),
+              }),
+          })),
+          { concurrent: false },
+        ),
     },
     {
-      // Pretty sure this also re-signs base.apk
       title: 'Signing APKs',
       skip: () => options.decompileOnly,
       task: () =>
@@ -96,10 +117,19 @@ function patchAppBundle(options: TaskOptions, { isXapk }: { isXapk: boolean }) {
   ])
 }
 
-function getXapkBaseName(manifest: any) {
-  if (manifest.split_apks) {
-    return manifest.split_apks.filter((apk: any) => apk.id === 'base')[0].file
+function getXapkApkPaths(bundleDir: string, manifest: any): string[] {
+  if (manifest.split_apks && Array.isArray(manifest.split_apks)) {
+    // Extract all APK file names from split_apks array
+    return manifest.split_apks
+      .map((apk: any) => path.join(bundleDir, apk.file))
+      .sort()
   }
 
-  return `${manifest.package_name}.apk`
+  // Legacy format: single APK named after package
+  if (manifest.package_name) {
+    return [path.join(bundleDir, `${manifest.package_name}.apk`)]
+  }
+
+  // Fallback: empty array (will be caught by validation)
+  return []
 }
